@@ -1,0 +1,16 @@
+{
+  "name": "Libro Perpetuo",
+  "short_name": "LibroPerpetuo",
+  "description": "The book that never ends — WebXR AR reading platform",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0A0A0A",
+  "theme_color": "#C9A84C",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "categories": ["books", "education", "entertainment"],
+  "permissions": ["camera"]
+}
