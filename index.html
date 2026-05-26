@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+<title>Libro Perpetuo</title>
+<style>
+:root{
+  --gold:#C9A84C;--gold2:#E8C96A;--bg:#0A0A0A;--surf:#141414;
+  --light:#DDDDDD;--gray:#888888;--dim:#2A2A2A;
+  --serif:'Georgia',serif;--mono:'Courier New',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;-webkit-font-smoothing:antialiased}
+button{cursor:pointer;border:none;background:none;font-family:inherit}
+.hidden{display:none!important}
+
+/* CAMERA VIDEO — fills entire screen */
+#camera-video{
+  position:fixed;inset:0;z-index:1;
+  width:100%;height:100%;
+  object-fit:cover;
+  transform:scaleX(1); /* rear camera — no mirror */
+}
+
+/* MINDAR CANVAS — overlaid on video */
+#mindar-canvas{
+  position:fixed;inset:0;z-index:2;
+  width:100%!important;height:100%!important;
+  pointer-events:none;
+}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;z-index:100;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;text-align:center;padding:40px 32px;
+  transition:opacity .6s ease}
+#splash.hide{opacity:0;pointer-events:none}
+.sp-tag{font-family:var(--mono);font-size:9px;letter-spacing:5px;color:var(--gold);
+  text-transform:uppercase;margin-bottom:24px}
+.sp-title{font-size:clamp(60px,16vw,100px);font-weight:300;line-height:.9;
+  letter-spacing:-3px;color:#fff;font-family:Georgia,serif}
+.sp-title em{color:var(--gold);font-style:italic;display:block}
+.sp-sub{font-size:14px;color:var(--gray);font-style:italic;
+  margin:20px auto 30px;max-width:240px;line-height:1.6;font-family:Georgia,serif}
+.sp-bar-wrap{width:180px;height:2px;background:var(--dim);margin:0 auto 12px;overflow:hidden}
+.sp-bar{height:100%;background:var(--gold);width:0;animation:loadbar 2.5s ease forwards}
+@keyframes loadbar{0%{width:0}60%{width:70%}90%{width:90%}100%{width:100%}}
+.sp-status{font-family:var(--mono);font-size:8px;color:#444;letter-spacing:2px;text-transform:uppercase}
+#splash::before{content:'';position:absolute;top:10px;left:0;right:0;height:1px;
+  background:repeating-linear-gradient(to right,rgba(201,168,76,.6) 0,rgba(201,168,76,.6) 18px,transparent 18px,transparent 26px)}
+#splash::after{content:'';position:absolute;top:10px;left:10px;bottom:10px;width:1px;
+  background:repeating-linear-gradient(to bottom,rgba(201,168,76,.6) 0,rgba(201,168,76,.6) 12px,transparent 12px,transparent 18px)}
+
+/* HUD */
+#hud{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;
+  justify-content:space-between;pointer-events:none}
+#hud>*{pointer-events:all}
+
+/* topbar */
+#topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 10px;
+  background:linear-gradient(to bottom,rgba(0,0,0,.88),transparent);
+  backdrop-filter:blur(4px)}
+.tb-logo{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--gold);
+  letter-spacing:2px;border:1px solid var(--gold);padding:3px 8px;flex-shrink:0}
+.tb-info{display:flex;flex-direction:column;gap:1px;margin-left:10px;flex:1;min-width:0}
+.tb-title{font-size:13px;font-style:italic;color:var(--light);font-family:Georgia,serif;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-page{font-family:var(--mono);font-size:10px;color:var(--gold);letter-spacing:1px}
+.tb-right{display:flex;gap:4px}
+.hud-btn{color:var(--light);font-size:20px;padding:8px;line-height:1;transition:color .2s}
+
+/* tracking pill */
+#track-pill{position:absolute;top:66px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;padding:7px 18px;
+  background:rgba(0,0,0,.82);border:1px solid var(--dim);backdrop-filter:blur(8px);
+  font-family:var(--mono);font-size:8px;letter-spacing:2px;text-transform:uppercase;
+  white-space:nowrap;pointer-events:none;transition:all .3s}
+.track-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:all .3s}
+#track-pill.on{border-color:var(--gold);color:var(--gold)}
+#track-pill.on .track-dot{background:var(--gold);box-shadow:0 0 7px var(--gold);animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* scan guide */
+#scan-guide{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:min(70vw,280px);aspect-ratio:.707;pointer-events:none;z-index:5;
+  opacity:.6;transition:opacity .4s}
+#scan-guide.hide{opacity:0}
+.sg-c{position:absolute;width:24px;height:24px;border-color:var(--gold);border-style:solid}
+.sg-c.tl{top:0;left:0;border-width:2.5px 0 0 2.5px}
+.sg-c.tr{top:0;right:0;border-width:2.5px 2.5px 0 0}
+.sg-c.bl{bottom:0;left:0;border-width:0 0 2.5px 2.5px}
+.sg-c.br{bottom:0;right:0;border-width:0 2.5px 2.5px 0}
+.sg-lbl{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);
+  font-family:var(--mono);font-size:7px;color:var(--gold);letter-spacing:3px;
+  white-space:nowrap;text-transform:uppercase;
+  text-shadow:0 1px 4px rgba(0,0,0,.8)}
+
+/* content card */
+#content-card{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);
+  width:min(82vw,380px);pointer-events:none;transition:opacity .3s}
+#content-card.hide{opacity:0}
+.cc-box{background:rgba(248,246,240,.95);padding:18px 20px 14px;
+  box-shadow:0 8px 40px rgba(0,0,0,.7);border-radius:2px}
+.cc-chapter{font-family:var(--mono);font-size:8px;color:var(--gold);
+  letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;
+  border-bottom:1px solid rgba(201,168,76,.3);padding-bottom:6px}
+.cc-text{font-family:Georgia,serif;font-size:15px;color:#1A1A1A;line-height:1.72;font-weight:400}
+.cc-num{font-family:var(--mono);font-size:8px;color:#AAA;text-align:right;margin-top:8px;letter-spacing:2px}
+
+/* bottom bar */
+#bottombar{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 32px;
+  background:linear-gradient(to top,rgba(0,0,0,.88),transparent);
+  backdrop-filter:blur(4px)}
+.bb-ch{font-size:11px;font-style:italic;color:var(--gold);font-family:Georgia,serif;
+  max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bb-acts{display:flex;gap:6px}
+.bb-btn{background:rgba(20,20,20,.85);border:1px solid var(--dim);color:var(--gray);
+  font-family:var(--mono);font-size:10px;padding:8px 13px;transition:all .2s}
+.bb-btn.active,.bb-btn:active{border-color:var(--gold);color:var(--gold)}
+
+/* Library panel */
+#library{position:fixed;inset:0;z-index:50;background:rgba(6,6,6,.97);
+  backdrop-filter:blur(14px);display:flex;flex-direction:column;
+  transform:translateX(100%);transition:transform .4s cubic-bezier(.16,1,.3,1)}
+#library.open{transform:translateX(0)}
+.lib-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:22px 20px 16px;border-bottom:1px solid var(--dim)}
+.lib-hdr-t{font-family:var(--mono);font-size:10px;letter-spacing:4px;
+  color:var(--gold);text-transform:uppercase}
+.lib-list{flex:1;overflow-y:auto}
+.lib-item{display:flex;align-items:center;gap:14px;padding:15px 20px;
+  border-bottom:1px solid var(--dim);cursor:pointer;transition:background .2s;position:relative}
+.lib-item::before{content:'';position:absolute;left:0;top:0;bottom:0;width:0;
+  background:var(--gold);transition:width .2s}
+.lib-item:hover::before,.lib-item.active::before{width:3px}
+.lib-item:hover,.lib-item.active{background:var(--surf)}
+.lib-item.active .lib-name{color:var(--gold)}
+.lib-slot{font-family:var(--mono);font-size:7px;color:var(--gold);
+  border:1px solid var(--gold);padding:2px 6px;letter-spacing:2px;flex-shrink:0}
+.lib-meta{flex:1;min-width:0}
+.lib-name{font-size:15px;font-style:italic;color:var(--light);font-family:Georgia,serif;
+  margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-author{font-family:var(--mono);font-size:8px;color:var(--gray);letter-spacing:1px}
+.lib-pp{font-family:var(--mono);font-size:9px;color:var(--dim);flex-shrink:0}
+.lib-foot{padding:18px 20px 36px;border-top:1px solid var(--dim)}
+.lib-cta{width:100%;padding:15px;background:var(--gold);color:var(--bg);
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+
+/* Page grid */
+#pgrid{position:fixed;inset:0;z-index:50;background:rgba(6,6,6,.97);
+  backdrop-filter:blur(14px);display:flex;flex-direction:column;overflow-y:auto}
+.pg-hdr{display:flex;align-items:center;justify-content:space-between;
+  padding:20px 20px 14px;border-bottom:1px solid var(--dim);
+  position:sticky;top:0;background:rgba(6,6,6,.97);z-index:1}
+.pg-title{font-family:var(--mono);font-size:9px;color:var(--gold);letter-spacing:3px;text-transform:uppercase}
+.pg-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--dim)}
+.pg-cell{background:var(--surf);padding:14px 8px;text-align:center;cursor:pointer;transition:background .2s}
+.pg-cell:active,.pg-cell.active{background:rgba(201,168,76,.12)}
+.pg-num{font-family:var(--mono);font-size:11px;color:var(--gold);font-weight:700}
+
+/* No camera */
+#nocam{position:fixed;inset:0;z-index:90;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;padding:40px;text-align:center}
+.nc-icon{font-size:48px}
+#nocam h2{font-size:22px;font-weight:400;color:var(--light);font-family:Georgia,serif}
+#nocam p{font-size:13px;color:var(--gray);line-height:1.7;max-width:280px;font-family:Georgia,serif}
+.nc-btn{padding:14px 28px;background:var(--gold);color:var(--bg);
+  font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase}
+.nc-btn-sec{background:var(--surf);color:var(--gold);border:1px solid var(--gold)}
+
+/* crypto border */
+.cb{position:fixed;inset:0;pointer-events:none;z-index:20}
+.cb::before{content:'';position:absolute;top:10px;left:0;right:0;height:1px;
+  background:repeating-linear-gradient(to right,rgba(201,168,76,.45) 0,rgba(201,168,76,.45) 18px,transparent 18px,transparent 26px)}
+.cb::after{content:'';position:absolute;top:10px;right:10px;bottom:10px;width:1px;
+  background:repeating-linear-gradient(to bottom,rgba(201,168,76,.45) 0,rgba(201,168,76,.45) 12px,transparent 12px,transparent 18px)}
+.cb2{position:fixed;top:10px;left:10px;bottom:10px;width:1px;pointer-events:none;z-index:20;
+  background:repeating-linear-gradient(to bottom,rgba(201,168,76,.45) 0,rgba(201,168,76,.45) 12px,transparent 12px,transparent 18px)}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--dim)}
+</style>
+</head>
+<body>
+
+<!-- CAMERA VIDEO BACKGROUND — real world visible here -->
+<video id="camera-video" autoplay playsinline muted></video>
+
+<!-- MINDAR CANVAS — tracking overlay -->
+<canvas id="mindar-canvas"></canvas>
+
+<!-- decorative border -->
+<div class="cb"></div><div class="cb2"></div>
+
+<!-- SPLASH -->
+<div id="splash">
+  <div class="sp-tag">Dessign Innovation · WebXR PoC v1.2</div>
+  <h1 class="sp-title">LIBRO<em>PERPETUO</em></h1>
+  <p class="sp-sub">Punta la camera sulla pagina del libro. La storia appare.</p>
+  <div class="sp-bar-wrap"><div class="sp-bar"></div></div>
+  <p class="sp-status" id="splashStatus">Avvio fotocamera...</p>
+</div>
+
+<!-- NO CAMERA -->
+<div id="nocam" class="hidden">
+  <div class="nc-icon">📷</div>
+  <h2>Camera non disponibile</h2>
+  <p>Assicurati di usare Chrome su Android e di permettere l'accesso alla fotocamera quando richiesto.</p>
+  <button class="nc-btn" onclick="location.reload()">Riprova</button>
+  <button class="nc-btn nc-btn-sec" onclick="enterDemo()" style="margin-top:8px">Modalità Demo</button>
+</div>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div style="display:flex;align-items:center">
+      <div class="tb-logo">LP</div>
+      <div class="tb-info">
+        <span class="tb-title" id="tbTitle">Nessun titolo</span>
+        <span class="tb-page" id="tbPage">— / —</span>
+      </div>
+    </div>
+    <div class="tb-right">
+      <button class="hud-btn" id="btnGrid">⊞</button>
+      <button class="hud-btn" id="btnLib">≡</button>
+    </div>
+  </div>
+
+  <div id="track-pill" class="off">
+    <span class="track-dot"></span>
+    <span id="trackTxt">Cerca pagina...</span>
+  </div>
+
+  <div id="scan-guide">
+    <div class="sg-c tl"></div><div class="sg-c tr"></div>
+    <div class="sg-c bl"></div><div class="sg-c br"></div>
+    <div class="sg-lbl">Allinea con la pagina del libro</div>
+  </div>
+
+  <div id="content-card" class="hide">
+    <div class="cc-box">
+      <div class="cc-chapter" id="ccCh"></div>
+      <div class="cc-text" id="ccTx"></div>
+      <div class="cc-num" id="ccNm"></div>
+    </div>
+  </div>
+
+  <div id="bottombar">
+    <span class="bb-ch" id="bbCh"></span>
+    <div class="bb-acts">
+      <button class="bb-btn" id="btnFm">A−</button>
+      <button class="bb-btn" id="btnFp">A+</button>
+      <button class="bb-btn" id="btnTog">◑</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIBRARY -->
+<div id="library">
+  <div class="lib-hdr">
+    <span class="lib-hdr-t">Libreria</span>
+    <button class="hud-btn" id="btnClLib">✕</button>
+  </div>
+  <div class="lib-list" id="libList"></div>
+  <div class="lib-foot">
+    <button class="lib-cta" onclick="setTitle('demo_sardinia')">Guida Sardegna</button>
+  </div>
+</div>
+
+<!-- PAGE GRID -->
+<div id="pgrid" class="hidden">
+  <div class="pg-hdr">
+    <span class="pg-title">Simula pagina</span>
+    <button class="hud-btn" id="btnClPg">✕</button>
+  </div>
+  <div class="pg-grid" id="pgGrid"></div>
+</div>
+
+<!-- MindAR -->
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+
+<script>
+// ═══════════════════════════════════════════
+//  LIBRO PERPETUO — v1.2
+//  Camera: getUserMedia → <video> element
+//  Tracking: MindAR standalone (no A-Frame)
+//  Dessign Innovation — 2026
+// ═══════════════════════════════════════════
+
+const DB = {
+  alice_wonderland:{
+    1:{ch:'Cap. I — Giù nella tana del coniglio',tx:'Alice cominciava a stancarsi di stare seduta accanto alla sorella sulla riva, senza niente da fare. "E a cosa serve un libro", pensò Alice, "senza figure né dialoghi?"'},
+    2:{ch:'Cap. I — Giù nella tana del coniglio',tx:'Così stava considerando se il piacere di fare una ghirlanda di margherite valesse la fatica di alzarsi, quando improvvisamente un Coniglio Bianco dagli occhi rosa le passò di corsa accanto.'},
+    3:{ch:'Cap. I — Giù nella tana del coniglio',tx:'Non c\'era nulla di molto straordinario in questo; né Alice trovò strano sentire il Coniglio dire: "Oh cielo! Oh cielo! Farò tardi!" Sul momento le sembrò del tutto naturale.'},
+    4:{ch:'Cap. I — Giù nella tana del coniglio',tx:'Ma quando il Coniglio tirò fuori un orologio dal taschino del gilet, Alice balzò in piedi e attraversò il campo di corsa dietro di lui, bruciando di curiosità.'},
+    5:{ch:'Cap. I — Giù nella tana del coniglio',tx:'La buca del coniglio andava diritta per un po\', poi si inclinava di scatto verso il basso. Alice si trovò a cadere in quello che sembrava un pozzo molto profondo.'},
+    6:{ch:'Cap. II — Il lago di lacrime',tx:'"Sempre più curioso!" esclamò Alice. Era così sorpresa che dimenticò come si parla bene. "Ora mi sto aprendo come il cannocchiale più grande che ci sia mai stato! Addio, piedi!"'},
+    7:{ch:'Cap. II — Il lago di lacrime',tx:'"Dovranno essere portati per corriere", pensò Alice. "Che divertimento spedire regali ai propri piedi! Al Signor Piede Destro di Alice, Tappeto davanti al Caminetto, con il caro amore di Alice."'},
+    8:{ch:'Cap. III — Una corsa caotica',tx:'Era davvero un partito di aspetto curioso quello che si radunò sulla riva: uccelli con le piume bagnate, animali con il pelo incollato, tutti gocciolanti e a disagio.'},
+    9:{ch:'Cap. III — Una corsa caotica',tx:'Dopo qualche minuto parve del tutto naturale ad Alice trovarsi a conversare familiarmente con loro, come se li conoscesse da tutta la vita.'},
+    10:{ch:'Cap. IV — Il piccolo Bill',tx:'Era il Coniglio Bianco che trotterellava lentamente indietro, guardandosi ansiosamente intorno. Lo sentì mormorare: "La Duchessa! Oh le mie zampe! Oh il mio pelo e i miei baffi!"'},
+  },
+  demo_sardinia:{
+    1:{ch:'Introduzione',tx:'La Sardegna custodisce nel suo antico paesaggio una delle civiltà più singolari del mondo. Il popolo nuragico costruì un mondo a sé dalle correnti dell\'Europa continentale.'},
+    2:{ch:'Cap. I — I Nuraghi',tx:'Oltre settemila nuraghi sono ancora in piedi in tutta la Sardegna. Il più grande, Su Nuraxi di Barumini, risale al 1500 a.C. ed è Patrimonio Mondiale UNESCO dal 1997.'},
+    3:{ch:'Cap. I — I Nuraghi',tx:'Nessuna testimonianza scritta della civiltà nuragica è sopravvissuta. Quello che sappiamo proviene solo dalle pietre stesse e dai bronzetti lasciati nelle loro camere.'},
+    4:{ch:'Cap. II — La Costa',tx:'La Costa Smeralda prende il nome dall\'eccezionale tavolozza delle sue acque. Baie turchesi si approfondiscono in un intenso cobalto, bordate da formazioni granitiche modellate dal vento.'},
+    5:{ch:'Cap. II — La Costa',tx:'Porto Cervo, concepito dall\'Aga Khan negli anni sessanta, trasformò una costa deserta in uno degli approdi più esclusivi del Mediterraneo.'},
+  },
+};
+
+const LIBRARY = [
+  {id:'alice_wonderland',title:"Alice nel Paese delle Meraviglie",author:'Lewis Carroll',slot:100,tot:96},
+  {id:'moby_dick',title:'Moby Dick',author:'Herman Melville',slot:500,tot:427},
+  {id:'demo_sardinia',title:'Sardegna — Guida Culturale',author:'Dessign Innovation',slot:100,tot:88},
+];
+
+const S = {
+  titleId:'alice_wonderland', title:LIBRARY[0],
+  page:-1, fontSize:15, visible:true, demoMode:false, mindar:null,
+};
+
+const $=id=>document.getElementById(id);
+const splash=$('splash'), hud=$('hud'), nocam=$('nocam');
+const video=$('camera-video'), canvas=$('mindar-canvas');
+
+window.addEventListener('DOMContentLoaded',()=>{
+  buildLib(); buildGrid(); bindUI();
+  runSplash();
+});
+
+// ── SPLASH ────────────────────────────────────
+function runSplash(){
+  const msgs=['Avvio fotocamera...','Richiesta permessi...','Caricamento MindAR...','Preparazione targets...','Pronto.'];
+  let i=0;
+  const iv=setInterval(()=>{
+    if(++i<msgs.length) $('splashStatus').textContent=msgs[i];
+    else{clearInterval(iv);setTimeout(startCamera,400);}
+  },560);
+}
+
+// ── CAMERA ────────────────────────────────────
+async function startCamera(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    showNoCam(); return;
+  }
+  try{
+    // Request rear camera explicitly
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video:{
+        facingMode:{ideal:'environment'},
+        width:{ideal:1920}, height:{ideal:1080}
+      },
+      audio:false
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = ()=>{
+      video.play();
+      hideSplash();
+      hud.classList.remove('hidden');
+      setTitle('alice_wonderland');
+      startMindAR();
+    };
+  }catch(e){
+    console.error('[LP] Camera error:',e);
+    showNoCam();
+  }
+}
+
+// ── MINDAR TRACKING ───────────────────────────
+async function startMindAR(){
+  // Check MindAR loaded
+  if(typeof MindARThree === 'undefined' && typeof window.MindARThree === 'undefined'){
+    console.warn('[LP] MindAR not loaded');
+    enterDemo(); return;
+  }
+
+  const MindARClass = window.MindARThree || MindARThree;
+
+  // Get targets URL relative to current page
+  const base = window.location.href.replace(/\/[^/]*$/,'/');
+  const targetsUrl = base + 'targets/pages.mind';
+  console.log('[LP] Targets:', targetsUrl);
+
+  try{
+    // Use MindAR with existing video element
+    const mindar = new MindARClass({
+      container: document.body,
+      imageTargetSrc: targetsUrl,
+      maxTrack: 2,
+      filterMinCF: 0.0001,
+      filterBeta: 0.01,
+      warmupTolerance: 5,
+      missTolerance: 10,
+      video: video,  // reuse our video element
+    });
+
+    S.mindar = mindar;
+
+    const {renderer, scene, camera} = mindar;
+
+    // Make renderer canvas overlay video
+    const r = renderer.domElement;
+    r.id = 'mindar-canvas';
+    r.style.cssText = 'position:fixed;inset:0;z-index:2;width:100%!important;height:100%!important;pointer-events:none';
+    document.body.appendChild(r);
+
+    // Create anchors for all 100 pages
+    for(let i=0;i<100;i++){
+      const anchor = mindar.addAnchor(i);
+      const pn = i+1;
+      anchor.onTargetFound = ()=>{ console.log('[LP] Found:',pn); pageFound(pn); };
+      anchor.onTargetLost  = ()=>{ console.log('[LP] Lost:',pn);  pageLost();    };
+    }
+
+    await mindar.start();
+    console.log('[LP] MindAR running — camera active');
+    setTracking(false,'Punta la camera sulla pagina...');
+
+    renderer.setAnimationLoop(()=>renderer.render(scene,camera));
+
+  }catch(e){
+    console.error('[LP] MindAR error:',e.message||e);
+    // Camera still works — just tracking doesn't
+    setTracking(false,'Tracking non disponibile — usa ⊞ per demo');
+  }
+}
+
+// ── PAGE EVENTS ───────────────────────────────
+function pageFound(n){
+  S.page=n;
+  setTracking(true,`Pagina ${pad(n)} rilevata`);
+  $('scan-guide').classList.add('hide');
+  $('tbPage').textContent=`${n} / ${S.title?.tot||'—'}`;
+  loadContent(n);
+}
+
+function pageLost(){
+  S.page=-1;
+  setTracking(false,'Cerca pagina...');
+  $('scan-guide').classList.remove('hide');
+  $('content-card').classList.add('hide');
+  $('tbPage').textContent=`— / ${S.title?.tot||'—'}`;
+}
+
+function loadContent(n){
+  const db=DB[S.titleId];
+  if(!db) return;
+  let c=db[n];
+  if(!c){
+    const ks=Object.keys(db).map(Number).sort((a,b)=>a-b);
+    const near=ks.reduce((p,cv)=>Math.abs(cv-n)<Math.abs(p-n)?cv:p);
+    c={ch:db[near].ch,tx:`[Pagina ${n}] ${db[near].tx.substring(0,150)}...`};
+  }
+  $('ccCh').textContent=c.ch||'';
+  $('ccTx').textContent=c.tx||'';
+  $('ccTx').style.fontSize=S.fontSize+'px';
+  $('ccNm').textContent=pad(n);
+  $('bbCh').textContent=c.ch||'';
+  if(S.visible) $('content-card').classList.remove('hide');
+}
+
+// ── TITLE ─────────────────────────────────────
+function setTitle(id){
+  const t=LIBRARY.find(x=>x.id===id);
+  if(!t) return;
+  S.titleId=id; S.title=t;
+  $('tbTitle').textContent=t.title;
+  $('tbPage').textContent=`— / ${t.tot}`;
+  document.querySelectorAll('.lib-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+  $('library').classList.remove('open');
+  $('content-card').classList.add('hide');
+}
+
+// ── DEMO MODE ─────────────────────────────────
+function enterDemo(){
+  S.demoMode=true;
+  setTracking(false,'Demo — usa ⊞ per simulare pagine');
+}
+
+// ── UI ────────────────────────────────────────
+function setTracking(on,txt){
+  $('track-pill').className=on?'on':'off';
+  $('trackTxt').textContent=txt;
+}
+
+function hideSplash(){
+  splash.classList.add('hide');
+  setTimeout(()=>splash.classList.add('hidden'),700);
+}
+
+function showNoCam(){
+  hideSplash();
+  nocam.classList.remove('hidden');
+}
+
+function pad(n){return String(n).padStart(3,'0');}
+
+function buildLib(){
+  const list=$('libList');
+  LIBRARY.forEach(t=>{
+    const el=document.createElement('div');
+    el.className='lib-item'; el.dataset.id=t.id;
+    el.innerHTML=`<span class="lib-slot">${t.slot}</span><div class="lib-meta"><div class="lib-name">${t.title}</div><div class="lib-author">${t.author}</div></div><span class="lib-pp">${t.tot}pp</span>`;
+    el.addEventListener('click',()=>setTitle(t.id));
+    list.appendChild(el);
+  });
+}
+
+function buildGrid(){
+  const g=$('pgGrid');
+  for(let i=1;i<=100;i++){
+    const c=document.createElement('div');
+    c.className='pg-cell'; c.dataset.page=i;
+    c.innerHTML=`<div class="pg-num">${pad(i)}</div>`;
+    c.addEventListener('click',()=>{
+      document.querySelectorAll('.pg-cell').forEach(x=>x.classList.toggle('active',+x.dataset.page===i));
+      $('pgrid').classList.add('hidden');
+      pageFound(i);
+    });
+    g.appendChild(c);
+  }
+}
+
+function bindUI(){
+  $('btnLib').addEventListener('click',()=>$('library').classList.add('open'));
+  $('btnClLib').addEventListener('click',()=>$('library').classList.remove('open'));
+  $('btnGrid').addEventListener('click',()=>$('pgrid').classList.remove('hidden'));
+  $('btnClPg').addEventListener('click',()=>$('pgrid').classList.add('hidden'));
+  $('btnFm').addEventListener('click',()=>{S.fontSize=Math.max(10,S.fontSize-1);$('ccTx').style.fontSize=S.fontSize+'px';});
+  $('btnFp').addEventListener('click',()=>{S.fontSize=Math.min(22,S.fontSize+1);$('ccTx').style.fontSize=S.fontSize+'px';});
+  $('btnTog').addEventListener('click',()=>{
+    S.visible=!S.visible;
+    $('btnTog').classList.toggle('active',S.visible);
+    if(S.visible&&S.page>0) $('content-card').classList.remove('hide');
+    else $('content-card').classList.add('hide');
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='ArrowRight'&&S.page>0) pageFound(Math.min(S.page+1,S.title?.tot||100));
+    if(e.key==='ArrowLeft'&&S.page>1) pageFound(S.page-1);
+  });
+}
+</script>
+</body>
+</html>
